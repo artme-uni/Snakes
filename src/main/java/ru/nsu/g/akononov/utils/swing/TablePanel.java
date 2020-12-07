@@ -29,6 +29,7 @@ public class TablePanel extends JTable {
         setRowHeight(rowHeight);
     }
 
+
     private void setRenders(){
         DefaultTableCellRenderer cellRenderer = new DefaultTableCellRenderer();
         cellRenderer.setHorizontalAlignment(SwingConstants.CENTER);
@@ -67,7 +68,15 @@ public class TablePanel extends JTable {
         model.addRow(values);
     }
 
+    public void removeRecord(int index){
+        model.removeRow(index);
+    }
+
     public void clearTable(){
         model.setRowCount(0);
+    }
+
+    public String getRecord(int rowIndex, int columnIndex){
+        return model.getValueAt(rowIndex, columnIndex).toString();
     }
 }
