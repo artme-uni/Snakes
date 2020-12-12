@@ -36,13 +36,34 @@ public class PlaygroundEditor {
         pointEditor = new PointEditor(height, width);
     }
 
+    public void setPlaygroundElements(List<GameState.Coord> foods, List<GameState.Snake> snakes){
+        this.foods.addAll(foods);
+
+        for (GameState.Snake snake : snakes) {
+            this.snakes.add(GameState.Snake.newBuilder(snake));
+        }
+        initNextHeadDirection();
+    }
+
+    public void initNextHeadDirection(){
+        for (GameState.Snake.Builder snake : snakes) {
+            GameState.Coord head = snake.getPoints(0);
+            GameState.Coord offset = snake.getPoints(1);
+
+            GameState.Coord.Builder secondCoord = GameState.Coord.newBuilder(head);
+            secondCoord.setX(head.getX() + offset.getX()).setY(head.getY() + offset.getY());
+
+            Direction snakeHeadDirection = pointEditor.getDirection(head, secondCoord.build());
+            nextHeadDirection.put(snake.getPlayerId(), snakeHeadDirection);
+        }
+    }
+
     public void setHeadDirection(Direction direction, int playerID) {
         nextHeadDirection.put(playerID, direction);
     }
 
     public void addSnake(int playerID) {
         GameState.Snake.Builder snake = getRandomSnake(playerID);
-
         snakes.add(snake);
     }
 
@@ -80,16 +101,6 @@ public class PlaygroundEditor {
         }
     }
 
-    private boolean isAvailable(GameState.Snake snake) {
-        for (GameState.Coord coord : pointEditor.getCoordinates(snake, height, width)) {
-            if (!isAvailable(coord)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private GameState.Snake.Builder getRandomSnake(int playerID) {
         Direction headDirection = pointEditor.getRandomDirection();
         nextHeadDirection.put(playerID, headDirection);
@@ -116,7 +127,7 @@ public class PlaygroundEditor {
 
         while (!isEmptySquare(start, size)) {
             if (iterationCount++ == 1000) {
-                throw new RuntimeException("Too many attempts for finding empty square " + size + "x" + size);
+                throw new RuntimeException("Can't find empty square " + size + "x" + size + "to add new snake");
             }
 
             start = getNotSnakeCoord();
@@ -143,28 +154,35 @@ public class PlaygroundEditor {
         return true;
     }
 
-    private int getPlayerIndex(int playerID) {
-        int i;
+    private Integer getPlayerIndex(int playerID) {
+        Integer index = null;
         synchronized (players) {
-            for (i = 0; i < players.getPlayersCount(); i++) {
+            for (int i = 0; i < players.getPlayersCount(); i++) {
                 if (players.getPlayers(i).getId() == playerID) {
+                    index = i;
                     break;
                 }
             }
         }
-        return i;
+        return index;
+    }
+
+    private void addPointToPlayer(GameState.Snake snake){
+        Integer index = getPlayerIndex(snake.getPlayerId());
+        if(index != null) {
+            synchronized (players) {
+                GamePlayer.Builder player = players.getPlayers(index).toBuilder();
+                player.setScore(player.getScore() + 1);
+                players.setPlayers(index, player);
+            }
+        }
     }
 
     private void updatedSnakeCoords(GameState.Snake.Builder snake) {
         snakeEditor.updateHeadPosition(snake, nextHeadDirection);
         boolean isGrow = isGrow(snake.build());
         if (isGrow) {
-            int index = getPlayerIndex(snake.getPlayerId());
-            synchronized (players) {
-                GamePlayer.Builder player = players.getPlayers(index).toBuilder();
-                player.setScore(player.getScore() + 1);
-                players.setPlayers(index, player);
-            }
+            addPointToPlayer(snake.build());
         }
 
         if (snake.getPointsCount() == 2) {
@@ -210,30 +228,6 @@ public class PlaygroundEditor {
         return false;
     }
 
-    private boolean isAvailable(GameState.Coord coordinate) {
-        if (isIntersect(coordinate)) {
-            return false;
-        }
-
-        ArrayList<GameState.Coord> surrounding = pointEditor.getSurrounding(coordinate);
-        for (GameState.Coord point : surrounding) {
-            if (isIntersect(point)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private GameState.Coord getAvailableCoord() {
-        GameState.Coord current = pointEditor.getRandomCoordinate(height, width);
-        while (!isAvailable(current)) {
-            current = pointEditor.getRandomCoordinate(height, width);
-        }
-
-        return current;
-    }
-
     private GameState.Coord getEmptyCoord() {
         GameState.Coord current = pointEditor.getRandomCoordinate(height, width);
         while (isIntersect(current)) {
@@ -268,6 +262,8 @@ public class PlaygroundEditor {
                         }
                     }
                     snakeForRemove.add(snake);
+                    addPointToPlayer(otherSnake.build());
+
                     break;
                 }
             }

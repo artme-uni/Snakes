@@ -57,6 +57,9 @@ public class UdpMsgSender implements MsgSender {
     }
 
     private void sendUnicastMessage(byte[] message, SocketAddress destination) {
+        if(destination.toString().equals("localhost/127.0.0.1:0")){
+            return;
+        }
         try {
             DatagramPacket packet = new DatagramPacket(message, message.length, destination);
             socket.send(packet);

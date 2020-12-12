@@ -14,9 +14,8 @@ import java.util.Date;
 import static me.ippolitov.fit.snakes.SnakesProto.*;
 
 public class MessageSender {
-    private static final Logger logger = LoggerFactory.getLogger(MessageSender.class);
+    private static final Logger logger = LoggerFactory.getLogger(MessageSender.class.getSimpleName());
 
-    private final DatagramSocket socket;
     private final MsgSender sender;
 
     private final InetSocketAddress announcementMulticastAddr;
@@ -28,14 +27,17 @@ public class MessageSender {
     private int messageSequence = 0;
 
     public MessageSender(DatagramSocket socket, InetSocketAddress announcementMulticastAddr, Date lastSendTime) {
-        this.socket = socket;
         this.sender = new UdpMsgSender(socket);
         this.lastSendTime = lastSendTime;
 
         this.announcementMulticastAddr = announcementMulticastAddr;
     }
 
-    public void setAcknowledgement(Acknowledgement acknowledgement){
+    public void setServerAddress(InetSocketAddress serverAddress) {
+        this.server = serverAddress;
+    }
+
+    public void setAcknowledgement(Acknowledgement acknowledgement) {
         this.acknowledgement = acknowledgement;
     }
 
@@ -43,45 +45,51 @@ public class MessageSender {
         this.messageSequence = messageSequence;
     }
 
-    public void sendAckMsg(long messageSequence, int receiverID){
+    public void sendJoinAckMsg(long messageSequence, int receiverID, int senderID, InetSocketAddress inetSocketAddress) {
         GameMessage message = GameMessage.newBuilder()
                 .setAck(GameMessage.AckMsg.newBuilder().build())
                 .setMsgSeq(messageSequence)
+                .setSenderId(senderID)
                 .setReceiverId(receiverID)
                 .build();
 
-        sendBroadcast(message);
-        logger.debug("Send ACC #{}", messageSequence);
+        sendUnicast(message, inetSocketAddress);
+        logger.trace("Send join ACK #{} to {}", messageSequence, inetSocketAddress);
     }
 
-    public void sendAckMsg(long messageSequence, InetSocketAddress inetSocketAddress){
+    public void sendJoinAckMsg(long messageSequence, InetSocketAddress inetSocketAddress) {
         GameMessage message = GameMessage.newBuilder()
                 .setAck(GameMessage.AckMsg.newBuilder().build())
                 .setMsgSeq(messageSequence)
                 .build();
 
         sendUnicast(message, inetSocketAddress);
-        logger.debug("Send ACC #{}", messageSequence);
+        logger.trace("Send ACK #{} to {}", messageSequence, inetSocketAddress);
     }
 
-    public void addPlayer(InetSocketAddress inetSocketAddress){
+    public void addPlayer(InetSocketAddress inetSocketAddress) {
         sender.addDestination(inetSocketAddress);
     }
 
-    public void removePlayer(InetSocketAddress inetSocketAddress){
+    public void removePlayer(InetSocketAddress inetSocketAddress) {
         sender.removeDestination(inetSocketAddress);
     }
 
-    public void clearDestination(){
+    public void clearDestination() {
         sender.clearDestinations();
     }
 
-    public void sendErrorMsg(){
+    public void sendErrorMsg(String errorMsg, InetSocketAddress address) {
+        GameMessage.ErrorMsg errMsg = GameMessage.ErrorMsg.newBuilder()
+                .setErrorMessage(errorMsg)
+                .build();
 
+        sender.sendUnicast(errMsg.toByteArray(), address);
+        logger.debug("Send ERROR #{} to {}", messageSequence, address);
     }
 
-    public GameMessage sendJoinMsg(InetSocketAddress destination, String name){
-        GameMessage.JoinMsg joinMsg= GameMessage.JoinMsg.newBuilder()
+    public GameMessage sendJoinMsg(InetSocketAddress destination, String name) {
+        GameMessage.JoinMsg joinMsg = GameMessage.JoinMsg.newBuilder()
                 .setPlayerType(PlayerType.HUMAN)
                 .setOnlyView(false)
                 .setName(name)
@@ -93,48 +101,76 @@ public class MessageSender {
                 .build();
 
         sendUnicast(message, destination);
-        logger.debug("Send JOIN #{} to {}", messageSequence, destination);
+        logger.trace("Send JOIN #{} to {}", messageSequence, destination);
 
         return message;
     }
 
-    public void sendPingMsg(){
-        if(server != null) {
+    public void sendPingMsg() {
+        if (server != null) {
             GameMessage message = GameMessage.newBuilder()
                     .setMsgSeq(++messageSequence)
                     .setPing(GameMessage.PingMsg.newBuilder().build())
                     .build();
 
             sendUnicast(message, server);
+            logger.trace("Send PING #{} to {}", messageSequence, server);
         }
     }
 
-    public void sendRoleMsg(){
+    public void sendOwnRoleMsg(NodeRole ownRole, Integer senderID, InetSocketAddress receiverAddress) {
+        GameMessage.RoleChangeMsg roleChangeMsg = GameMessage.RoleChangeMsg.newBuilder()
+                .setSenderRole(ownRole)
+                .build();
 
+        GameMessage message = GameMessage.newBuilder()
+                .setMsgSeq(++messageSequence)
+                .setRoleChange(roleChangeMsg)
+                .setSenderId(senderID)
+                .build();
+
+        sendUnicast(message, receiverAddress);
+        logger.trace("Send msg #{} with OWN-ROLE ({}) to {}", messageSequence, ownRole, receiverAddress);
     }
 
-    public void sendStateMsg(SnakesProto.GameState state){
+    public void sendReceiverRoleMsg(NodeRole receiverRole, Integer receiverID, InetSocketAddress receiverAddress) {
+        GameMessage.RoleChangeMsg roleChangeMsg = GameMessage.RoleChangeMsg.newBuilder()
+                .setReceiverRole(receiverRole)
+                .build();
+
+        GameMessage message = GameMessage.newBuilder()
+                .setMsgSeq(++messageSequence)
+                .setRoleChange(roleChangeMsg)
+                .setReceiverId(receiverID)
+                .build();
+
+        sendUnicast(message, receiverAddress);
+        logger.trace("Send msg #{} with ROLE ({}) to {}", messageSequence, receiverRole, receiverAddress);
+    }
+
+
+    public void sendStateMsg(SnakesProto.GameState state) {
         GameMessage message = GameMessage.newBuilder()
                 .setMsgSeq(++messageSequence)
                 .setState(GameMessage.StateMsg.newBuilder().setState(state).build())
                 .build();
 
         sendBroadcast(message);
-        logger.debug("Send STATE #{} to BROAD", messageSequence);
+        logger.trace("Send STATE №{} to BROAD", state.getStateOrder());
     }
 
-    public void sendSteerMsg(Direction direction){
+    public void sendSteerMsg(Direction direction) {
         GameMessage message = GameMessage.newBuilder()
                 .setMsgSeq(++messageSequence)
                 .setSteer(GameMessage.SteerMsg.newBuilder().setDirection(direction).build())
                 .build();
 
         sendBroadcast(message);
-        logger.debug("Send STEER #{} to BROAD", messageSequence);
+        logger.trace("Send STEER #{}", messageSequence);
     }
 
-    public void sendAnnouncementMsg(boolean canJoin, GamePlayers players, GameConfig config){
-        GameMessage.AnnouncementMsg announcementMsg= GameMessage.AnnouncementMsg.newBuilder()
+    public void sendAnnouncementMsg(boolean canJoin, GamePlayers players, GameConfig config) {
+        GameMessage.AnnouncementMsg announcementMsg = GameMessage.AnnouncementMsg.newBuilder()
                 .setCanJoin(canJoin)
                 .setPlayers(players)
                 .setConfig(config)
@@ -146,13 +182,13 @@ public class MessageSender {
                 .build();
 
         sendUnicast(gameMessage, announcementMulticastAddr);
-        logger.debug("Send ANNOUNCEMENT #{} to {}", messageSequence, announcementMulticastAddr);
+        logger.trace("Send ANNOUNCEMENT #{} to {}", messageSequence, announcementMulticastAddr);
     }
 
-    private void sendBroadcast(GameMessage message){
+    private void sendBroadcast(GameMessage message) {
         sender.sendBroadcast(message.toByteArray());
 
-        if(hasToBeConfirmed(message)) {
+        if (hasToBeConfirmed(message)) {
             for (InetSocketAddress destination : sender.getDestinations()) {
                 setLastSendTime(destination);
                 acknowledgement.addMessageToBeConfirmed(message, destination);
@@ -160,18 +196,18 @@ public class MessageSender {
         }
     }
 
-    private void sendUnicast(GameMessage message, InetSocketAddress socketAddress){
+    private void sendUnicast(GameMessage message, InetSocketAddress socketAddress) {
         setLastSendTime(socketAddress);
         sender.sendUnicast(message.toByteArray(), socketAddress);
 
-        if(hasToBeConfirmed(message)) {
+        if (hasToBeConfirmed(message)) {
             acknowledgement.addMessageToBeConfirmed(message, socketAddress);
         }
     }
 
-    private void setLastSendTime(InetSocketAddress socketAddress){
-        if(server != null){
-            if(socketAddress.toString().equals(server.toString())){
+    private void setLastSendTime(InetSocketAddress socketAddress) {
+        if (server != null) {
+            if (socketAddress.toString().equals(server.toString())) {
                 synchronized (lastSendTime) {
                     lastSendTime.setTime(System.currentTimeMillis());
                 }
@@ -179,11 +215,11 @@ public class MessageSender {
         }
     }
 
-    private boolean hasToBeConfirmed(GameMessage message){
+    private boolean hasToBeConfirmed(GameMessage message) {
         return message.getTypeCase() != GameMessage.TypeCase.ACK && message.getTypeCase() != GameMessage.TypeCase.ANNOUNCEMENT;
     }
 
-    public void send(GameMessage message, InetSocketAddress destination){
+    public void send(GameMessage message, InetSocketAddress destination) {
         sender.sendUnicast(message.toByteArray(), destination);
     }
 }

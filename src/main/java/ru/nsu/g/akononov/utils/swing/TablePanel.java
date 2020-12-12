@@ -69,7 +69,9 @@ public class TablePanel extends JTable {
     }
 
     public void removeRecord(int index){
-        model.removeRow(index);
+        try {
+            model.removeRow(index);
+        }catch (ArrayIndexOutOfBoundsException ignored){}
     }
 
     public void clearTable(){

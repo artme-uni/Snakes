@@ -14,4 +14,6 @@ public interface Controller {
 
     void exitGame();
     void setConfig(SnakesProto.GameConfig config);
+
+    void shutdown();
 }

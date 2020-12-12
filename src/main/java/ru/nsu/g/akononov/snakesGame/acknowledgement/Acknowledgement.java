@@ -10,11 +10,13 @@ import ru.nsu.g.akononov.snakesGame.transfer.msgHandlers.AckMsgHandler;
 import static me.ippolitov.fit.snakes.SnakesProto.*;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Acknowledgement implements AckMsgHandler {
-    private static final Logger logger = LoggerFactory.getLogger(Acknowledgement.class);
+    private static final Logger logger = LoggerFactory.getLogger(Acknowledgement.class.getSimpleName());
 
     private int WaitingAckTimeout = 200;
     private SnakesProto.GameMessage join = null;
@@ -24,11 +26,21 @@ public class Acknowledgement implements AckMsgHandler {
 
     private final CopyOnWriteArrayList<MsgMetaData> messagesToBeConfirmed = new CopyOnWriteArrayList<>();
 
+    public void deleteMsgToBeConfirmed(InetSocketAddress destination) {
+        List<MsgMetaData> msgToDelete = new ArrayList<>();
+        for(MsgMetaData msg : messagesToBeConfirmed){
+            if(msg.getSecondPoint().toString().equals(destination.toString())){
+                msgToDelete.add(msg);
+            }
+        }
+        messagesToBeConfirmed.removeAll(msgToDelete);
+    }
+
     public Acknowledgement(Node logic, MessageSender transfer) {
         this.logic = logic;
         this.transfer = transfer;
 
-        Thread thread = new Thread(()->{
+        Thread thread = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(WaitingAckTimeout / 2);
@@ -64,8 +76,8 @@ public class Acknowledgement implements AckMsgHandler {
     }
 
     private void resendMessage(MsgMetaData message) {
-        logger.debug("RESEND {} to {}", message.getMessage().getMsgSeq(), message.getSecondPoint());
         transfer.send(message.getMessage(), message.getSecondPoint());
+        logger.trace("Resend {} to {}", message.getMessage().getMsgSeq(), message.getSecondPoint());
     }
 
     public void addMessageToBeConfirmed(GameMessage message, InetSocketAddress destination) {
@@ -79,7 +91,10 @@ public class Acknowledgement implements AckMsgHandler {
         }
 
         if (join != null && newMessage.getMsgSeq() == join.getMsgSeq()) {
-            logic.joinToServer(newMessage.getReceiverId(), source);
+            if (newMessage.hasReceiverId() && newMessage.hasSenderId()) {
+                logic.joinToServer(newMessage.getReceiverId(), newMessage.getSenderId(), source);
+                join = null;
+            }
         }
 
         messagesToBeConfirmed.removeIf(metaData -> metaData.getMessage().getMsgSeq() == newMessage.getMsgSeq());

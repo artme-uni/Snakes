@@ -17,6 +17,8 @@ public class Announcement implements MsgSubscriber, Runnable, ObservableAnnounce
     private final static int SEND_PERIOD = 1000;
     private final MessageSender transfer;
 
+    private long lastSendTime;
+
     private GamePlayers players = null;
     private GameConfig config = null;
 
@@ -24,10 +26,10 @@ public class Announcement implements MsgSubscriber, Runnable, ObservableAnnounce
     private HashMap<SocketAddress, Date> receivedTime = new LinkedHashMap<>();
 
 
-    public Announcement(InetSocketAddress groupAddress, MessageSender transfer) throws IOException {
+    public Announcement(InetSocketAddress groupAddress, MessageSender transfer, MulticastSocket socket) throws IOException {
         this.transfer = transfer;
 
-        AnnouncementRadar radar = new AnnouncementRadar(groupAddress);
+        AnnouncementRadar radar = new AnnouncementRadar(groupAddress, socket);
         radar.subscribe(this);
         Thread receivingThread = new Thread(radar);
         receivingThread.start();
@@ -55,8 +57,13 @@ public class Announcement implements MsgSubscriber, Runnable, ObservableAnnounce
     public void run() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                Thread.sleep(SEND_PERIOD);
-                sendAnnounce();
+                Thread.sleep(100);
+                long currentTime = System.currentTimeMillis();
+                if((currentTime - lastSendTime) > SEND_PERIOD){
+                    sendAnnounce();
+                    lastSendTime = currentTime;
+                }
+
                 filterReceivedAnnouncements();
 
             } catch (InterruptedException e) {

@@ -1,4 +1,4 @@
-package ru.nsu.g.akononov.snakesGame.tracker;
+package ru.nsu.g.akononov.snakesGame.trackers;
 
 import java.net.InetSocketAddress;
 

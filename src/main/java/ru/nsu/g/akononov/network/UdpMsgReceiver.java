@@ -27,7 +27,9 @@ public class UdpMsgReceiver implements MsgReceiver {
                 processMessage(packet);
             } catch (SocketTimeoutException ignored){}
             catch (IOException e) {
-                e.printStackTrace();
+                if(!e.getMessage().equals("Socket closed")){
+                    e.printStackTrace();
+                }
             }
         }
     }

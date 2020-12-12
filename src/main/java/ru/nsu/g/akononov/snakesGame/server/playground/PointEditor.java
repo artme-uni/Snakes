@@ -55,7 +55,8 @@ public class PointEditor {
     }
 
     public Direction getDirection(GameState.Coord first, GameState.Coord second) {
-        if (first.getX() != second.getX() && first.getY() != second.getY()) {
+        if (first.getX() != second.getX() && first.getY() != second.getY()
+                || second.getX() == first.getX() && second.getY() == first.getY()) {
             throw new RuntimeException();
         }
 

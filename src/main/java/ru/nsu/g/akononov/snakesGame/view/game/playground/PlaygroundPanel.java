@@ -117,12 +117,10 @@ public class PlaygroundPanel extends JPanel {
             if (x < 0) {
                 x = x + height;
             }
-
             int y = (currentY + sign * i * (isOffsetY ? 1 : 0)) % height;
             if (y < 0) {
                 y = y + height;
             }
-
 
             setSnake(isOwn, isZombie, true, x, y);
         }

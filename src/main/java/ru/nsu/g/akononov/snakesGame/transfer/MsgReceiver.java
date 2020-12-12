@@ -11,12 +11,12 @@ import java.net.SocketAddress;
 import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static me.ippolitov.fit.snakes.SnakesProto.*;
+import static me.ippolitov.fit.snakes.SnakesProto.GameMessage;
 
 public class MsgReceiver implements MsgSubscriber, MsgManager {
-    private static final Logger logger = LoggerFactory.getLogger(MsgReceiver.class);
+    private static final Logger logger = LoggerFactory.getLogger(MsgReceiver.class.getSimpleName());
 
-    InetSocketAddress server = null;
+    InetSocketAddress server;
     private NodeStateType stateType;
     private final MessageSender transfer;
 
@@ -30,12 +30,12 @@ public class MsgReceiver implements MsgSubscriber, MsgManager {
         this.lastReceivedMsgTime = lastReceivedMsgTime;
     }
 
-    public void setServer(InetSocketAddress server) {
-        this.server = server;
-    }
-
     public void setStateType(NodeStateType stateType) {
         this.stateType = stateType;
+    }
+
+    public void setServerAddress(InetSocketAddress serverAddress) {
+        this.server = serverAddress;
     }
 
     public void manageNewMsg(byte[] message, SocketAddress source) {
@@ -57,17 +57,17 @@ public class MsgReceiver implements MsgSubscriber, MsgManager {
                 }
             }
 
-            if(msgType != GameMessage.TypeCase.ANNOUNCEMENT) {
+            if (msgType != GameMessage.TypeCase.ANNOUNCEMENT) {
                 lastReceivedMsgTime.put(inetSource, new Date());
             }
             if (hasToBeConfirmed(gameMsg)) {
-                transfer.sendAckMsg(gameMsg.getMsgSeq(), inetSource);
+                transfer.sendJoinAckMsg(gameMsg.getMsgSeq(), inetSource);
             }
-
 
             switch (msgType) {
                 case ACK:
                 case JOIN:
+                case ROLE_CHANGE:
                     notifyHandlers(gameMsg, source);
                     break;
                 case ERROR:
@@ -75,9 +75,6 @@ public class MsgReceiver implements MsgSubscriber, MsgManager {
                     break;
                 case PING:
                     notifyHandlers(gameMsg.getPing());
-                    break;
-                case ROLE_CHANGE:
-                    notifyHandlers(gameMsg.getRoleChange());
                     break;
                 case STATE:
                     notifyHandlers(gameMsg.getState());

@@ -9,6 +9,8 @@ import ru.nsu.g.akononov.utils.swing.MainFrame;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 public class GUI {
     private Controller controller;
@@ -30,6 +32,12 @@ public class GUI {
             frame.addPanel(menuPanel, "menu");
 
             frame.switchPanel();
+
+            frame.addWindowListener(new WindowAdapter() {
+                public void windowClosing(WindowEvent event) {
+                    controller.shutdown();
+                }
+            });
         });
     }
 

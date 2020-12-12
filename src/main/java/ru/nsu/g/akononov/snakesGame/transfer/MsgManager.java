@@ -83,6 +83,13 @@ public interface MsgManager {
                     handler.handle(newMessage, socketAddress);
                 }
                 break;
+            case ROLE_CHANGE:
+                for (RoleChangeMsgHandler handler : roleChangeMsgHandlers) {
+                    handler.handle(newMessage, socketAddress);
+                }
+                break;
+            default:
+                throw new RuntimeException();
         }
     }
 
@@ -116,18 +123,10 @@ public interface MsgManager {
         roleChangeMsgHandlers.add(handler);
     }
 
-
-
     default void removeHandler(RoleChangeMsgHandler handler){
         roleChangeMsgHandlers.remove(handler);
     }
 
-
-    default void notifyHandlers(RoleChangeMsg newMessage){
-        for (RoleChangeMsgHandler handler : roleChangeMsgHandlers) {
-            handler.handle(newMessage);
-        }
-    }
 
     default void registerMsgHandler(StateMsgHandler handler){
         if (handler == null) {

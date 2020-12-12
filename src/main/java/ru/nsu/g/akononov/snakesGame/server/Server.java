@@ -23,11 +23,56 @@ public class Server implements ObservableState, SteerMsgHandler {
 
     private final Timer timer = new Timer();
 
-    private final HashMap<SocketAddress, Integer> playersID = new LinkedHashMap<>();
+    private final HashMap<InetSocketAddress, Integer> playersID = new LinkedHashMap<>();
+
+    public HashMap<InetSocketAddress, Integer> getPlayersID() {
+        return playersID;
+    }
+
+    public Integer getPlayerID(InetSocketAddress address) {
+        Integer playerID = null;
+
+        for (GamePlayer player : players.getPlayersList()) {
+            if(address.getHostName().equals("localhost") && address.getPort() == 0){
+                if (player.getIpAddress().equals("")
+                        && player.getPort() == 0) {
+                    playerID = player.getId();
+                }
+            } else {
+                if (player.getIpAddress().equals(address.getHostName())
+                        && player.getPort() == address.getPort()) {
+                    playerID = player.getId();
+                }
+            }
+        }
+
+        return playerID;
+    }
 
     public Server(GameConfig gameConfig) {
         this.config = gameConfig;
         playgroundEditor = new PlaygroundEditor(config, players);
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                updateState();
+            }
+        }, 0, config.getStateDelayMs());
+    }
+
+    public Server(GameState initialState) {
+        stateID = initialState.getStateOrder();
+        config = initialState.getConfig();
+
+        for (GamePlayer player : initialState.getPlayers().getPlayersList()) {
+            this.players.addPlayers(player);
+            if (lastPlayerID < player.getId()) {
+                lastPlayerID = player.getId();
+            }
+        }
+
+        playgroundEditor = new PlaygroundEditor(config, players);
+        playgroundEditor.setPlaygroundElements(initialState.getFoodsList(), initialState.getSnakesList());
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
@@ -60,7 +105,6 @@ public class Server implements ObservableState, SteerMsgHandler {
             stateID++;
 
             playgroundEditor.updateState();
-
             sendNewState(getState());
         }
     }
@@ -69,7 +113,7 @@ public class Server implements ObservableState, SteerMsgHandler {
         playgroundEditor.setHeadDirection(direction, playerID);
     }
 
-    public int addPlayer(String name, String ip, int port, PlayerType type, NodeRole role) {
+    public int addPlayer(String name, String ip, int port, PlayerType type, NodeRole role) throws RuntimeException {
         GamePlayer.Builder newPlayer = GamePlayer.newBuilder();
 
         newPlayer.setId(++lastPlayerID)
@@ -81,21 +125,22 @@ public class Server implements ObservableState, SteerMsgHandler {
                 .setScore(0);
 
         playersID.put(new InetSocketAddress(ip, port), lastPlayerID);
-
         players.addPlayers(newPlayer);
 
-        try {
-            playgroundEditor.addSnake(lastPlayerID);
-        }catch (RuntimeException runtimeException){
-            runtimeException.printStackTrace();
-        }
+        playgroundEditor.addSnake(lastPlayerID);
 
         return lastPlayerID;
     }
 
-    public void setZombie(InetSocketAddress address){
-        int playerID = playersID.get(address);
+    public void setZombie(InetSocketAddress address) {
+        Integer playerID = getPlayerID(address);
 
+        if (playerID != null) {
+            setZombie(playerID);
+        }
+    }
+
+    public void setZombie(int playerID) {
         synchronized (players) {
             int playerForDeleteIndex = -1;
             for (int i = 0; i < players.getPlayersCount(); i++) {
@@ -111,7 +156,7 @@ public class Server implements ObservableState, SteerMsgHandler {
         playgroundEditor.setSnakeZombie(playerID);
     }
 
-    public void stop(){
+    public void stop() {
         timer.cancel();
     }
 
@@ -135,9 +180,27 @@ public class Server implements ObservableState, SteerMsgHandler {
 
     @Override
     public void handle(GameMessage.SteerMsg newMessage, SocketAddress source) {
-        Integer playerID = playersID.get(source);
-        if(playerID != null){
+        Integer playerID = getPlayerID((InetSocketAddress) source);
+        if (playerID != null) {
             setHeadDirection(newMessage.getDirection(), playerID);
+        }
+    }
+
+    public void setNewDeputy(InetSocketAddress address){
+        int newDeputyID = getPlayerID(address);
+        for (int i = 0; i < players.getPlayersCount(); i++) {
+            GamePlayer currentPLayer = players.getPlayers(i);
+            if(currentPLayer.getRole() == NodeRole.DEPUTY){
+                players.setPlayers(i, GamePlayer.newBuilder(currentPLayer).setRole(NodeRole.NORMAL));
+                break;
+            }
+        }
+        for (int i = 0; i < players.getPlayersCount(); i++) {
+            GamePlayer currentPLayer = players.getPlayers(i);
+            if(currentPLayer.getId() == newDeputyID){
+                players.setPlayers(i, GamePlayer.newBuilder(currentPLayer).setRole(NodeRole.DEPUTY));
+                break;
+            }
         }
     }
 }

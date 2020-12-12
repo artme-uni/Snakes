@@ -13,8 +13,8 @@ public class AnnouncementRadar implements Runnable, MsgReceiver{
 
     private final MulticastSocket socket;
 
-    public AnnouncementRadar(InetSocketAddress socketAddress) throws IOException {
-        this.socket = new MulticastSocket(socketAddress.getPort());
+    public AnnouncementRadar(InetSocketAddress socketAddress, MulticastSocket socket) throws IOException {
+        this.socket = socket;
 
         Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
         for (NetworkInterface netIf : Collections.list(nets)) {
@@ -40,7 +40,9 @@ public class AnnouncementRadar implements Runnable, MsgReceiver{
 
             } catch (SocketTimeoutException ignored){}
             catch (IOException e) {
-                e.printStackTrace();
+                if(!e.getMessage().equals("Socket closed")){
+                    e.printStackTrace();
+                }
             }
         }
     }

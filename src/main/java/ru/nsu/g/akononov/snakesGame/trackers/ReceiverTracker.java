@@ -1,4 +1,4 @@
-package ru.nsu.g.akononov.snakesGame.tracker;
+package ru.nsu.g.akononov.snakesGame.trackers;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class ReceiverTracker implements InactiveNodesTracker {
-    private static final Logger logger = LoggerFactory.getLogger(ReceiverTracker.class);
+    private static final Logger logger = LoggerFactory.getLogger(ReceiverTracker.class.getSimpleName());
 
     private long nodeTimeout = 2000;
     private final ConcurrentHashMap<InetSocketAddress, Date> lastReceivedMsgTime;
@@ -24,7 +24,6 @@ public class ReceiverTracker implements InactiveNodesTracker {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-
                 refreshInactiveNode();
             }
         });
@@ -55,7 +54,7 @@ public class ReceiverTracker implements InactiveNodesTracker {
     }
 
     private void addInactiveNode(InetSocketAddress node) {
-        logger.debug("Cannot connect to " + node);
+        logger.debug("Find new inactive node - {}", node);
         lastReceivedMsgTime.remove(node);
         notifyAboutInactiveNode(node);
     }
